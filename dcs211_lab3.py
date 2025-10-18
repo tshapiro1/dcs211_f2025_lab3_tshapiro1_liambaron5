@@ -2,7 +2,9 @@
  
 # How to run (examples):
 #   python dcs211_lab3.py --help
-#   python dcs211_lab3.py false
+#   python dcs211_lab3.py false 
+#   python dcs211_lab3.py true two_minors_only.html 
+#   python dcs211_lab3.py true five_minors_only.html
 #   python dcs211_lab3.py true dcs_minor_roster.html
 
 import sys
@@ -86,6 +88,10 @@ def parseHTML(filename: str) -> list[Student]:
     # Create an empty list to store Student objects
     students = []
     
+    # Create dictionaries to count DCS minors by year and by advisor
+    year_counts = {}
+    advisor_counts = {}
+    
     # Loop through each row and extract student information
     for row in rows:
         # Find all the cells (td tags) in this row
@@ -127,17 +133,46 @@ def parseHTML(filename: str) -> list[Student]:
         
         # Extract advisor name (10th cell, index 9)
         advisor_cell = cells[9]
-        # The advisor name is in plain text after a hidden span
-        advisor = advisor_cell.text.strip()
+        # Get the hidden span which has the advisor name (fix as it was previously printing duplicate advisor names)
+        advisor_span = advisor_cell.find('span')
+        advisor = advisor_span.text.strip() # type: ignore
         
         # Create a Student object with all the extracted information
         student = Student(name, email, year, majors, minors, gecs, advisor)
         
         # Add the student to our list
         students.append(student)
+        
+        # Count this student for the year summary
+        if year in year_counts:
+            year_counts[year] = year_counts[year] + 1
+        else:
+            year_counts[year] = 1
+        
+        # Count this student for the advisor summary
+        if advisor in advisor_counts:
+            advisor_counts[advisor] = advisor_counts[advisor] + 1
+        else:
+            advisor_counts[advisor] = 1
+    
+    # Print the summary tables using PrettyTable
+    print("\n")
+    year_table = PrettyTable()
+    year_table.field_names = ["Year", "# DCS Minors"]
+    for year in sorted(year_counts):
+        year_table.add_row([year, year_counts[year]])
+    print(year_table)
+    
+    print("\n")
+    advisor_table = PrettyTable()
+    advisor_table.field_names = ["Advisor", "# DCS Minors"]
+    for advisor in sorted(advisor_counts):
+        advisor_table.add_row([advisor, advisor_counts[advisor]])
+    print(advisor_table)
     
     # Return the list of students
     return students
+
 
 def main() -> None:
     '''
@@ -210,7 +245,7 @@ def main() -> None:
         # Write to CSV file
         csv_filename = "dcs_minors.csv"
         writeCSV(students, csv_filename)
-    
+
     else:
         print(f"Error: First argument must be 'true' or 'false', got '{write_csv}'")
         usage()
