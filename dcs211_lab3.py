@@ -59,22 +59,16 @@ def writeCSV(students: list[Student], filename: str) -> None:
 
 ### Main Code:   
 
-def parseHTML(filename: str) -> list[Student]:
+def parseMinors(soup: BeautifulSoup) -> tuple[dict[str, list[Student]], dict[str, list[Student]]]:
     ''' 
-    Parse an HTML file and extract student information into Student objects.
+    Parse a BeautifulSoup object and extract student information into two dictionaries.
     Parameters:
-        filename: (str) path to the HTML file to parse
+        soup: (BeautifulSoup) the parsed HTML object
     Returns:
-        list[Student]: a list of Student objects extracted from the HTML
-    ''' 
-
-    # Open and read the HTML file
-    file = open(filename, 'r')
-    html_content = file.read()
-    file.close()
-    
-    # Create a BeautifulSoup object to parse the HTML
-    soup = BeautifulSoup(html_content, 'html.parser')
+        tuple containing:
+            - dict[str, list[Student]]: dictionary with year as key, list of Students as value
+            - dict[str, list[Student]]: dictionary with advisor as key, list of Students as value
+    '''
     
     # Find the table with student data (it has id="studentList")
     table = soup.find('table', id='studentList')
@@ -85,12 +79,9 @@ def parseHTML(filename: str) -> list[Student]:
     # Find all the rows (each row is a student)
     rows = tbody.find_all('tr')  # type: ignore
     
-    # Create an empty list to store Student objects
-    students = []
-    
-    # Create dictionaries to count DCS minors by year and by advisor
-    year_counts = {}
-    advisor_counts = {}
+    # Create dictionaries to store students by year and by advisor
+    by_year = {}
+    by_advisor = {}
     
     # Loop through each row and extract student information
     for row in rows:
@@ -140,38 +131,20 @@ def parseHTML(filename: str) -> list[Student]:
         # Create a Student object with all the extracted information
         student = Student(name, email, year, majors, minors, gecs, advisor)
         
-        # Add the student to our list
-        students.append(student)
-        
-        # Count this student for the year summary
-        if year in year_counts:
-            year_counts[year] = year_counts[year] + 1
+        # Add the student to the by_year dictionary
+        if year in by_year:
+            by_year[year].append(student)
         else:
-            year_counts[year] = 1
+            by_year[year] = [student]
         
-        # Count this student for the advisor summary
-        if advisor in advisor_counts:
-            advisor_counts[advisor] = advisor_counts[advisor] + 1
+        # Add the student to the by_advisor dictionary
+        if advisor in by_advisor:
+            by_advisor[advisor].append(student)
         else:
-            advisor_counts[advisor] = 1
+            by_advisor[advisor] = [student]
     
-    # Print the summary tables using PrettyTable
-    print("\n")
-    year_table = PrettyTable()
-    year_table.field_names = ["Year", "# DCS Minors"]
-    for year in sorted(year_counts):
-        year_table.add_row([year, year_counts[year]])
-    print(year_table)
-    
-    print("\n")
-    advisor_table = PrettyTable()
-    advisor_table.field_names = ["Advisor", "# DCS Minors"]
-    for advisor in sorted(advisor_counts):
-        advisor_table.add_row([advisor, advisor_counts[advisor]])
-    print(advisor_table)
-    
-    # Return the list of students
-    return students
+    # Return the two dictionaries as a tuple
+    return (by_year, by_advisor)
 
 
 def main() -> None:
@@ -197,16 +170,26 @@ def main() -> None:
         print("Running in test mode (no CSV output)")
         print("\nTesting with 'two_minors_only.html'...")
         
-        # Parse the test file
-        students = parseHTML('two_minors_only.html')
+        # Open and read the HTML file
+        file = open('two_minors_only.html', 'r')
+        html_content = file.read()
+        file.close()
         
-        # Print how many students we found
-        print(f"\nFound {len(students)} students:")
+        # Create a BeautifulSoup object
+        soup = BeautifulSoup(html_content, 'html.parser')
+        
+        # Parse the HTML and get the two dictionaries
+        by_year, by_advisor = parseMinors(soup)
+        
+        # Print how many students we found (count all students in by_year dict)
+        total_students = sum(len(students) for students in by_year.values())
+        print(f"\nFound {total_students} students:")
         print("-" * 80)
         
-        # Print each student
-        for student in students:
-            print(student)
+        # Print each student (iterate through all years)
+        for year in sorted(by_year.keys()):
+            for student in by_year[year]:
+                print(student)
         
         print("-" * 80)
         return
@@ -229,22 +212,35 @@ def main() -> None:
         
         print(f"Parsing '{filename}'...")
         
-        # Parse the HTML file
-        students = parseHTML(filename)
+        # Open and read the HTML file
+        file = open(filename, 'r')
+        html_content = file.read()
+        file.close()
         
-        # Print how many students we found
-        print(f"Found {len(students)} students")
+        # Create a BeautifulSoup object
+        soup = BeautifulSoup(html_content, 'html.parser')
+        
+        # Parse the HTML and get the two dictionaries
+        by_year, by_advisor = parseMinors(soup)
+        
+        # Print how many students we found (count all students in by_year dict)
+        total_students = sum(len(students) for students in by_year.values())
+        print(f"Found {total_students} students")
         
         # Display the students in a table
         print("\nStudent roster:")
         print("-" * 80)
-        for student in students:
-            print(student)
+        for year in sorted(by_year.keys()):
+            for student in by_year[year]:
+                print(student)
         print("-" * 80)
         
-        # Write to CSV file
+        # Write to CSV file 
         csv_filename = "dcs_minors.csv"
-        writeCSV(students, csv_filename)
+        all_students = []
+        for year in sorted(by_year.keys()):
+            all_students.extend(by_year[year])
+        writeCSV(all_students, csv_filename)
 
     else:
         print(f"Error: First argument must be 'true' or 'false', got '{write_csv}'")
