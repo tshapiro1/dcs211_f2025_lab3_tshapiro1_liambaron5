@@ -147,105 +147,136 @@ def parseMinors(soup: BeautifulSoup) -> tuple[dict[str, list[Student]], dict[str
     return (by_year, by_advisor)
 
 
+def printOutput(by_year: dict[str, list[Student]], by_advisor: dict[str, list[Student]], write_csv: bool) -> None:
+    '''
+    Print output based on the parsed data - either CSV files or tables to screen.
+    
+    Parameters:
+        by_year: dictionary with year as key, list of Students as value
+        by_advisor: dictionary with advisor as key, list of Students as value
+        write_csv: if True, write CSV files; if False, print tables to screen
+    '''
+    if write_csv:
+        # Write one CSV file per graduation year
+        for year in sorted(by_year.keys()):
+            filename = f"dcs_minors_{year}.csv"
+            print(f"Writing {filename}...")
+            writeCSV(by_year[year], filename)
+    else:
+        # Print three tables to the screen
+        
+        # Table 1: All students sorted by year, then by name
+        student_table = PrettyTable()
+        student_table.field_names = ["Student", "Email", "Year", "Major(s)", "Minor(s)", "Advisor"]
+        student_table.align["Student"] = 'l'  # left-align
+        student_table.align["Email"] = 'l'
+        student_table.align["Major(s)"] = 'l'
+        student_table.align["Minor(s)"] = 'l'
+        student_table.align["Advisor"] = 'l'
+        
+        for year in sorted(by_year.keys()):
+            # Sort students by name within each year
+            sorted_students = sorted(by_year[year], key=lambda s: s._name)
+            for student in sorted_students:
+                student_table.add_row([
+                    student._name,
+                    student._email,
+                    student._year,
+                    ','.join(student._majors),
+                    ','.join(student._minors),
+                    student._advisor
+                ])
+        print(student_table)
+        
+        # Table 2: Number of DCS minors per year
+        year_table = PrettyTable()
+        year_table.field_names = ["Year", "# DCS Minors"]
+        for year in sorted(by_year.keys()):
+            year_table.add_row([year, len(by_year[year])])
+        print(year_table)
+        
+        # Table 3: Number of DCS minors per advisor (sorted by last name)
+        advisor_table = PrettyTable()
+        advisor_table.field_names = ["Advisor", "# DCS Minors"]
+        # Sort advisors by last name (split on comma and use first part)
+        sorted_advisors = sorted(by_advisor.keys(), key=lambda name: name.split(',')[0])
+        for advisor in sorted_advisors:
+            advisor_table.add_row([advisor, len(by_advisor[advisor])])
+        print(advisor_table)
+
+
 def main() -> None:
     '''
     Main function that handles command-line arguments and runs the program.
     '''
     # Check if user wants help
-    if len(sys.argv) == 2 and sys.argv[1] == "--help":
+    if len(sys.argv) >= 2 and sys.argv[1] == "--help":
         usage()
-        return
+        sys.exit(0)
     
-    # Check if we have the right number of arguments
+    # Check if we have at least one argument
     if len(sys.argv) < 2:
         print("Error: Not enough arguments")
         usage()
-        return
+        sys.exit(1)
     
-    # Get the first argument (write CSV? true/false)
-    write_csv = sys.argv[1].lower()
-    
-    # Check if it's "false" (just test/display mode)
-    if write_csv == "false":
-        print("Running in test mode (no CSV output)")
-        print("\nTesting with 'two_minors_only.html'...")
-        
-        # Open and read the HTML file
-        file = open('two_minors_only.html', 'r')
-        html_content = file.read()
-        file.close()
-        
-        # Create a BeautifulSoup object
-        soup = BeautifulSoup(html_content, 'html.parser')
-        
-        # Parse the HTML and get the two dictionaries
-        by_year, by_advisor = parseMinors(soup)
-        
-        # Print how many students we found (count all students in by_year dict)
-        total_students = sum(len(students) for students in by_year.values())
-        print(f"\nFound {total_students} students:")
-        print("-" * 80)
-        
-        # Print each student (iterate through all years)
-        for year in sorted(by_year.keys()):
-            for student in by_year[year]:
-                print(student)
-        
-        print("-" * 80)
-        return
-    
-    # Check if it's "true" (CSV output mode)
-    elif write_csv == "true":
-        # Make sure we have a filename
-        if len(sys.argv) < 3:
-            print("Error: You must provide an HTML filename when using 'true'")
-            usage()
-            return
-        
-        # Get the filename
-        filename = sys.argv[2]
-        
-        # Check if file exists
-        if not os.path.exists(filename):
-            print(f"Error: File '{filename}' not found")
-            return
-        
-        print(f"Parsing '{filename}'...")
-        
-        # Open and read the HTML file
-        file = open(filename, 'r')
-        html_content = file.read()
-        file.close()
-        
-        # Create a BeautifulSoup object
-        soup = BeautifulSoup(html_content, 'html.parser')
-        
-        # Parse the HTML and get the two dictionaries
-        by_year, by_advisor = parseMinors(soup)
-        
-        # Print how many students we found (count all students in by_year dict)
-        total_students = sum(len(students) for students in by_year.values())
-        print(f"Found {total_students} students")
-        
-        # Display the students in a table
-        print("\nStudent roster:")
-        print("-" * 80)
-        for year in sorted(by_year.keys()):
-            for student in by_year[year]:
-                print(student)
-        print("-" * 80)
-        
-        # Write to CSV file 
-        csv_filename = "dcs_minors.csv"
-        all_students = []
-        for year in sorted(by_year.keys()):
-            all_students.extend(by_year[year])
-        writeCSV(all_students, csv_filename)
-
-    else:
-        print(f"Error: First argument must be 'true' or 'false', got '{write_csv}'")
+    # Get the first argument (write CSV? true/false) and handle case-insensitivity
+    write_csv_str = sys.argv[1].title()  # Converts to "True" or "False"
+    try:
+        write_csv = bool(eval(write_csv_str))
+    except:
+        print(f"Error: First argument must be 'true' or 'false', got '{sys.argv[1]}'")
         usage()
-        return
+        sys.exit(1)
+    
+    # Determine the HTML filename to use
+    html_filename = ""
+    
+    if len(sys.argv) >= 3:
+        # User provided a filename
+        html_filename = sys.argv[2]
+    else:
+        # No filename provided - find HTML files and let user choose
+        all_files = os.listdir()
+        html_files = sorted([f for f in all_files if f.endswith('.html')])
+        
+        if len(html_files) == 0:
+            print("Error: No HTML files found in current directory")
+            sys.exit(1)
+        
+        print("HTML files found:")
+        for html_file in html_files:
+            print(f"  {html_file}")
+        
+        # Prompt user for choice (use first file as default)
+        default_file = html_files[0]
+        user_input = input(f"Enter name of HTML source (return for default '{default_file}'): ")
+        
+        if user_input.strip() == "":
+            html_filename = default_file
+        else:
+            html_filename = user_input.strip()
+    
+    # Try to open and read the HTML file
+    try:
+        file = open(html_filename, 'r')
+        html_content = file.read()
+        file.close()
+    except FileNotFoundError:
+        print(f"Error: File '{html_filename}' cannot be read or does not exist")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error: Cannot read file '{html_filename}': {e}")
+        sys.exit(1)
+    
+    # Create a BeautifulSoup object
+    soup = BeautifulSoup(html_content, 'html.parser')
+    
+    # Parse the HTML and get the two dictionaries
+    by_year, by_advisor = parseMinors(soup)
+    
+    # Call printOutput to handle all output
+    printOutput(by_year, by_advisor, write_csv)
 
 if __name__ == "__main__":
     main()
