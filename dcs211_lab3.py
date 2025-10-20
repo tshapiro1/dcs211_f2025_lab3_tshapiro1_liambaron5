@@ -15,10 +15,8 @@ from prettytable import PrettyTable
 from Student import Student
 
 def usage() -> None:
-    print(f"Usage: python {sys.argv[0]} [--help | true filename | false]")
-    print("  --help          : print this help message and exit")
-    print("  true filename   : parse the given HTML file and print a table of DCS minors")
-    print("  false          : run built-in tests (no file needed)")
+    '''Print usage message for the program.'''
+    print(f"Usage: python {sys.argv[0]} <write CSV? False/True> <optional: HTML filename>")
     print()
     print("Notes:")
     print("  - Requires: pip install beautifulsoup4 prettytable")
