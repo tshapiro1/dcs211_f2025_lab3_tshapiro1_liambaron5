@@ -16,12 +16,7 @@ from Student import Student
 
 def usage() -> None:
     '''Print usage message for the program.'''
-    print(f"Usage: python {sys.argv[0]} <write CSV? False/True> <optional: HTML filename>")
-    print()
-    print("Notes:")
-    print("  - Requires: pip install beautifulsoup4 prettytable")
-    print("  - The filename should be a local HTML file in the USGS format")
-    print("  - If 'false' is given, no filename is needed or used") 
+    print(f"Usage: python {sys.argv[0]} <write CSV? False/True> <optional: HTML filename>") 
 
 ### Write CSV Function:  
 
@@ -32,6 +27,9 @@ def writeCSV(students: list[Student], filename: str) -> None:
     Parameters:
         students: list of Student objects to write
         filename: name of the CSV file to create
+    
+    Returns:
+        None
     '''
     # Open a new CSV file for writing
     file = open(filename, 'w', newline='')
@@ -51,8 +49,6 @@ def writeCSV(students: list[Student], filename: str) -> None:
     
     # Close the file
     file.close()
-    
-    print(f"CSV file '{filename}' created successfully!")
 
 
 ### Main Code:   
@@ -60,8 +56,10 @@ def writeCSV(students: list[Student], filename: str) -> None:
 def parseMinors(soup: BeautifulSoup) -> tuple[dict[str, list[Student]], dict[str, list[Student]]]:
     ''' 
     Parse a BeautifulSoup object and extract student information into two dictionaries.
+    
     Parameters:
         soup: (BeautifulSoup) the parsed HTML object
+    
     Returns:
         tuple containing:
             - dict[str, list[Student]]: dictionary with year as key, list of Students as value
@@ -101,15 +99,22 @@ def parseMinors(soup: BeautifulSoup) -> tuple[dict[str, list[Student]], dict[str
         major_tags = majors_cell.find_all('abbr')
         majors = []
         for major_tag in major_tags:
-            major_name = major_tag.get('title')
-            majors.append(major_name)
+            # Get the abbreviation text (not the title attribute)
+            major_name = major_tag.text.strip()
+            # If major is "0000", use empty string instead
+            if major_name != "0000":
+                majors.append(major_name)
+        # If no majors, use empty string
+        if len(majors) == 0:
+            majors = [""]
         
         # Extract minors (8th cell, index 7, has abbr tags)
         minors_cell = cells[7]
         minor_tags = minors_cell.find_all('abbr')
         minors = []
         for minor_tag in minor_tags:
-            minor_name = minor_tag.get('title')
+            # Get the abbreviation text (not the title attribute)
+            minor_name = minor_tag.text.strip()
             minors.append(minor_name)
         
         # Extract GECs (9th cell, index 8, has abbr tags)
@@ -117,8 +122,12 @@ def parseMinors(soup: BeautifulSoup) -> tuple[dict[str, list[Student]], dict[str
         gec_tags = gecs_cell.find_all('abbr')
         gecs = []
         for gec_tag in gec_tags:
-            gec_name = gec_tag.get('title')
+            # Get the abbreviation text 
+            gec_name = gec_tag.text.strip()
             gecs.append(gec_name)
+        # If no GECs, use empty string
+        if len(gecs) == 0:
+            gecs = [""]
         
         # Extract advisor name (10th cell, index 9)
         advisor_cell = cells[9]
@@ -153,13 +162,18 @@ def printOutput(by_year: dict[str, list[Student]], by_advisor: dict[str, list[St
         by_year: dictionary with year as key, list of Students as value
         by_advisor: dictionary with advisor as key, list of Students as value
         write_csv: if True, write CSV files; if False, print tables to screen
+    
+    Returns:
+        None
     '''
     if write_csv:
         # Write one CSV file per graduation year
         for year in sorted(by_year.keys()):
             filename = f"dcs_minors_{year}.csv"
             print(f"Writing {filename}...")
-            writeCSV(by_year[year], filename)
+            # Sort students by name within each year before writing
+            sorted_students = sorted(by_year[year], key=lambda s: s._name)
+            writeCSV(sorted_students, filename)
     else:
         # Print three tables to the screen
         
@@ -174,7 +188,7 @@ def printOutput(by_year: dict[str, list[Student]], by_advisor: dict[str, list[St
         
         for year in sorted(by_year.keys()):
             # Sort students by name within each year
-            sorted_students = sorted(by_year[year], key=lambda s: s._name)
+            sorted_students = sorted(by_year[year], key=lambda s: s._name) 
             for student in sorted_students:
                 student_table.add_row([
                     student._name,
@@ -206,6 +220,9 @@ def printOutput(by_year: dict[str, list[Student]], by_advisor: dict[str, list[St
 def main() -> None:
     '''
     Main function that handles command-line arguments and runs the program.
+    
+    Returns:
+        None
     '''
     # Check if user wants help
     if len(sys.argv) >= 2 and sys.argv[1] == "--help":
